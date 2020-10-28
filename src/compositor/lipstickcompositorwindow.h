@@ -112,7 +112,6 @@ private:
     qint64 m_processId;
     QString m_policyApplicationId;
     int m_windowId;
-    bool m_isAlien;
     QString m_category;
     bool m_delayRemove:1;
     bool m_windowClosed:1;

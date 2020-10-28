@@ -30,7 +30,7 @@
 
 LipstickCompositorWindow::LipstickCompositorWindow(int windowId, const QString &category,
                                                    QWaylandQuickSurface *surface, QQuickItem *parent)
-: QWaylandSurfaceItem(surface, parent), m_processId(0), m_windowId(windowId), m_isAlien(false), m_category(category),
+: QWaylandSurfaceItem(surface, parent), m_processId(0), m_windowId(windowId), m_category(category),
   m_delayRemove(false), m_windowClosed(false), m_removePosted(false), m_mouseRegionValid(false),
   m_interceptingTouch(false), m_mapped(false),
   m_focusOnTouch(false)
@@ -53,8 +53,6 @@ LipstickCompositorWindow::LipstickCompositorWindow(int windowId, const QString &
 #else
         m_processId = surface->processId();
 #endif
-
-        m_isAlien = surface->property("alienSurface").toBool();
 
         connect(surface, &QWaylandSurface::clientDestroyedSurface, this, &LipstickCompositorWindow::closed);
 
@@ -129,7 +127,7 @@ int LipstickCompositorWindow::windowId() const
 
 bool LipstickCompositorWindow::isAlien() const
 {
-    return m_isAlien;
+    return surface() && surface()->property("alienSurface").toBool();
 }
 
 qint64 LipstickCompositorWindow::processId() const
