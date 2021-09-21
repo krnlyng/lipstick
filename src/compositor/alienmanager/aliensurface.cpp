@@ -15,6 +15,7 @@
 #include <QtCompositorVersion>
 
 #include <QtCompositor/QWaylandSurface>
+#include <QQuickView>
 
 #if QTCOMPOSITOR_VERSION >= QT_VERSION_CHECK(5, 6, 0)
 #include <QtCompositor/QWaylandClient>
@@ -45,6 +46,9 @@ AlienSurface::AlienSurface(AlienClient *client, QWaylandSurface *surface, uint32
     connect(surface, &QWaylandSurface::configure, this, &AlienSurface::configure);
     setSurfaceType(QWaylandSurface::Toplevel);
     setSurfaceClassName(package);
+
+    setResizeMode(QQuickView::SizeRootObjectToView);
+
     surface->setProperty("alienSurface", true);
 }
 
