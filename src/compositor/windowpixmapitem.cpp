@@ -871,76 +871,66 @@ QSGNode *WindowPixmapItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
     }
 
     if (!m_hasBuffer && texture) {
-        if (!m_textureProvider) {
-            SnapshotTextureProvider *prov = new SnapshotTextureProvider;
-            m_textureProvider = prov;
-
-            if (!s_snapshotProgram) {
-                s_snapshotProgram = new SnapshotProgram;
-                s_snapshotProgram->program.addShaderFromSourceCode(QOpenGLShader::Vertex,
-                    "attribute highp vec4 vertex;\n"
-                    "varying highp vec2 texPos;\n"
-                    "void main(void) {\n"
-                    "   texPos = vertex.xy;\n"
-                    "   gl_Position = vec4(vertex.xy * 2.0 - 1.0, 0, 1);\n"
-                    "}");
-                s_snapshotProgram->program.addShaderFromSourceCode(QOpenGLShader::Fragment,
-                    "uniform sampler2D texture;\n"
-                    "varying highp vec2 texPos;\n"
-                    "void main(void) {\n"
-                    "   gl_FragColor = texture2D(texture, texPos);\n"
-                    "}");
-                if (!s_snapshotProgram->program.link())
-                    qDebug() << s_snapshotProgram->program.log();
-
-                s_snapshotProgram->vertexLocation = s_snapshotProgram->program.attributeLocation("vertex");
-                s_snapshotProgram->textureLocation = s_snapshotProgram->program.uniformLocation("texture");
-
-                connect(window(), &QQuickWindow::sceneGraphInvalidated, this, &WindowPixmapItem::cleanupOpenGL);
+        if (!m_haveSnapshot) {
+            if (!m_textureProvider) {
+                SnapshotTextureProvider *prov = new SnapshotTextureProvider;
+                m_textureProvider = prov;
+                if (!s_snapshotProgram) {
+                    s_snapshotProgram = new SnapshotProgram;
+                    s_snapshotProgram->program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                        "attribute highp vec4 vertex;\n"
+                        "varying highp vec2 texPos;\n"
+                        "void main(void) {\n"
+                        "   texPos = vertex.xy;\n"
+                        "   gl_Position = vec4(vertex.xy * 2.0 - 1.0, 0, 1);\n"
+                        "}");
+                    s_snapshotProgram->program.addShaderFromSourceCode(QOpenGLShader::Fragment,
+                        "uniform sampler2D texture;\n"
+                        "varying highp vec2 texPos;\n"
+                        "void main(void) {\n"
+                        "   gl_FragColor = texture2D(texture, texPos);\n"
+                        "}");
+                    if (!s_snapshotProgram->program.link())
+                        qDebug() << s_snapshotProgram->program.log();
+                    s_snapshotProgram->vertexLocation = s_snapshotProgram->program.attributeLocation("vertex");
+                    s_snapshotProgram->textureLocation = s_snapshotProgram->program.uniformLocation("texture");
+                    connect(window(), &QQuickWindow::sceneGraphInvalidated, this, &WindowPixmapItem::cleanupOpenGL);
+                }
             }
-        }
-        provider = m_textureProvider;
-
-        if (m_unmapLock) {
-            SnapshotTextureProvider *prov = static_cast<SnapshotTextureProvider *>(provider);
-
-            if (!prov->fbo || prov->fbo->size() != QSize(width(), height())) {
-                delete prov->fbo;
-                delete prov->t;
-                prov->t = 0;
-                prov->fbo = new QOpenGLFramebufferObject(width(), height());
+            provider = m_textureProvider;
+            if (m_unmapLock) {
+                SnapshotTextureProvider *prov = static_cast<SnapshotTextureProvider *>(provider);
+                if (!prov->fbo || prov->fbo->size() != QSize(width(), height())) {
+                    delete prov->fbo;
+                    delete prov->t;
+                    prov->t = 0;
+                    prov->fbo = new QOpenGLFramebufferObject(width(), height());
+                }
+                prov->fbo->bind();
+                s_snapshotProgram->program.bind();
+                texture->bind();
+                static GLfloat const triangleVertices[] = {
+                    1.f, 0.f,
+                    1.f, 1.f,
+                    0.f, 0.f,
+                    0.f, 1.f,
+                };
+                s_snapshotProgram->program.enableAttributeArray(s_snapshotProgram->vertexLocation);
+                s_snapshotProgram->program.setAttributeArray(s_snapshotProgram->vertexLocation, triangleVertices, 2);
+                glViewport(0, 0, width(), height());
+                glDisable(GL_BLEND);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                s_snapshotProgram->program.release();
+                if (!prov->t) {
+                    prov->t = window()->createTextureFromId(prov->fbo->texture(), prov->fbo->size(), 0);
+                    emit prov->textureChanged();
+                }
+                prov->fbo->release();
+                delete m_unmapLock;
+                m_unmapLock = 0;
+                s_snapshotProgram->program.disableAttributeArray(s_snapshotProgram->vertexLocation);
+                m_haveSnapshot = true;
             }
-
-            prov->fbo->bind();
-            s_snapshotProgram->program.bind();
-
-            texture->bind();
-
-            static GLfloat const triangleVertices[] = {
-                1.f, 0.f,
-                1.f, 1.f,
-                0.f, 0.f,
-                0.f, 1.f,
-            };
-            s_snapshotProgram->program.enableAttributeArray(s_snapshotProgram->vertexLocation);
-            s_snapshotProgram->program.setAttributeArray(s_snapshotProgram->vertexLocation, triangleVertices, 2);
-
-            glViewport(0, 0, width(), height());
-            glDisable(GL_BLEND);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-            s_snapshotProgram->program.release();
-
-            if (!prov->t) {
-                prov->t = window()->createTextureFromId(prov->fbo->texture(), prov->fbo->size(), 0);
-                emit prov->textureChanged();
-            }
-            prov->fbo->release();
-            delete m_unmapLock;
-            m_unmapLock = 0;
-            s_snapshotProgram->program.disableAttributeArray(s_snapshotProgram->vertexLocation);
-
-            m_haveSnapshot = true;
         }
     } else if (!m_hasBuffer && m_textureProvider) {
         provider = m_textureProvider;
